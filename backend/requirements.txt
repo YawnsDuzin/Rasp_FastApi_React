@@ -1,0 +1,46 @@
+# FastAPI and Web Framework
+fastapi==0.109.0
+uvicorn[standard]==0.27.0
+python-multipart==0.0.6
+websockets==12.0
+
+# Database
+sqlalchemy==2.0.25
+aiosqlite==0.19.0
+
+# System Monitoring
+psutil==5.9.8
+
+# Hardware Control (Raspberry Pi)
+# These will be installed only on Raspberry Pi
+# RPi.GPIO==0.7.1
+# gpiozero==2.0.1
+# spidev==3.6
+# smbus2==0.4.3
+# adafruit-circuitpython-dht==4.0.2
+# adafruit-circuitpython-bmp280==3.2.21
+# adafruit-circuitpython-ads1x15==2.2.23
+# adafruit-circuitpython-ssd1306==2.12.14
+# adafruit-circuitpython-neopixel==6.3.11
+
+# Data Processing
+numpy==1.26.3
+pydantic==2.5.3
+pydantic-settings==2.1.0
+
+# Async Support
+aiofiles==23.2.1
+
+# Logging
+python-json-logger==2.0.7
+
+# CORS
+starlette==0.35.1
+
+# Testing
+pytest==7.4.4
+pytest-asyncio==0.23.3
+httpx==0.26.0
+
+# Development
+python-dotenv==1.0.0
