@@ -105,7 +105,7 @@ class SPIController(BaseHardwareController, SimulationMixin):
 
     async def read_mcp3008(self, channel: int) -> Optional[int]:
         """
-        Read raw value from MCP3008 ADC channel.
+        Read raw value from MCP3008 ADC channel (non-blocking).
 
         Args:
             channel: ADC channel (0-7)
@@ -124,15 +124,20 @@ class SPIController(BaseHardwareController, SimulationMixin):
                 value = self._simulated_data["MCP3008"].get(key, 512)
                 return int(self._simulate_noise(value, 2.0))
             else:
-                # MCP3008 SPI protocol
-                cmd = [1, (8 + channel) << 4, 0]
-                result = self._spi.xfer2(cmd)
-                value = ((result[1] & 3) << 8) + result[2]
-                return value
+                # Run blocking SPI call in thread pool
+                return await asyncio.to_thread(self._read_mcp3008_sync, channel)
 
         except Exception as e:
             logger.error(f"MCP3008 read error: {e}")
             return None
+
+    def _read_mcp3008_sync(self, channel: int) -> int:
+        """Synchronous MCP3008 read (runs in thread pool)."""
+        # MCP3008 SPI protocol
+        cmd = [1, (8 + channel) << 4, 0]
+        result = self._spi.xfer2(cmd)
+        value = ((result[1] & 3) << 8) + result[2]
+        return value
 
     async def read_mcp3008_voltage(self, channel: int, vref: float = 3.3) -> Optional[float]:
         """
@@ -169,7 +174,7 @@ class SPIController(BaseHardwareController, SimulationMixin):
 
     async def transfer(self, data: List[int]) -> Optional[List[int]]:
         """
-        Perform SPI transfer.
+        Perform SPI transfer (non-blocking).
 
         Args:
             data: List of bytes to send
@@ -182,7 +187,8 @@ class SPIController(BaseHardwareController, SimulationMixin):
                 await asyncio.sleep(self._simulate_delay())
                 return [0] * len(data)
             else:
-                return self._spi.xfer2(data)
+                # Run blocking SPI call in thread pool
+                return await asyncio.to_thread(self._spi.xfer2, data)
 
         except Exception as e:
             logger.error(f"SPI transfer error: {e}")

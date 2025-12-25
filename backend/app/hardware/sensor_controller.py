@@ -126,7 +126,7 @@ class SensorController(BaseHardwareController, SimulationMixin):
 
     async def read_dht(self) -> Optional[Dict[str, float]]:
         """
-        Read temperature and humidity from DHT sensor.
+        Read temperature and humidity from DHT sensor (non-blocking).
 
         Returns:
             Dict with temperature (°C) and humidity (%)
@@ -156,25 +156,29 @@ class SensorController(BaseHardwareController, SimulationMixin):
                     ), 1)
                 }
             else:
-                # Real DHT reading with retry
-                for _ in range(3):
-                    try:
-                        temperature = self._dht_sensor.temperature
-                        humidity = self._dht_sensor.humidity
-
-                        if temperature is not None and humidity is not None:
-                            return {
-                                "temperature": round(temperature, 1),
-                                "humidity": round(humidity, 1)
-                            }
-                    except RuntimeError:
-                        await asyncio.sleep(0.1)
-
-                return None
+                # Run blocking DHT read in thread pool
+                return await asyncio.to_thread(self._read_dht_sync)
 
         except Exception as e:
             logger.error(f"DHT read error: {e}")
             return None
+
+    def _read_dht_sync(self) -> Optional[Dict[str, float]]:
+        """Synchronous DHT read with retry (runs in thread pool)."""
+        import time
+        for _ in range(3):
+            try:
+                temperature = self._dht_sensor.temperature
+                humidity = self._dht_sensor.humidity
+
+                if temperature is not None and humidity is not None:
+                    return {
+                        "temperature": round(temperature, 1),
+                        "humidity": round(humidity, 1)
+                    }
+            except RuntimeError:
+                time.sleep(0.1)
+        return None
 
     async def get_temperature(self) -> Optional[float]:
         """Get current temperature."""
@@ -190,7 +194,7 @@ class SensorController(BaseHardwareController, SimulationMixin):
 
     async def read_ultrasonic(self) -> Optional[float]:
         """
-        Read distance from HC-SR04 ultrasonic sensor.
+        Read distance from HC-SR04 ultrasonic sensor (non-blocking).
 
         Returns:
             Distance in centimeters
@@ -210,46 +214,51 @@ class SensorController(BaseHardwareController, SimulationMixin):
                     self._simulated_values["distance"], 2.0
                 ), 1)
             else:
-                import RPi.GPIO as GPIO
-                import time
-
-                GPIO.setup(self._ultrasonic_trigger, GPIO.OUT)
-                GPIO.setup(self._ultrasonic_echo, GPIO.IN)
-
-                # Send trigger pulse
-                GPIO.output(self._ultrasonic_trigger, True)
-                time.sleep(0.00001)
-                GPIO.output(self._ultrasonic_trigger, False)
-
-                # Wait for echo
-                start_time = time.time()
-                stop_time = time.time()
-
-                while GPIO.input(self._ultrasonic_echo) == 0:
-                    start_time = time.time()
-                    if start_time - stop_time > 0.1:
-                        return None
-
-                while GPIO.input(self._ultrasonic_echo) == 1:
-                    stop_time = time.time()
-                    if stop_time - start_time > 0.1:
-                        return None
-
-                # Calculate distance
-                elapsed = stop_time - start_time
-                distance = (elapsed * 34300) / 2
-
-                return round(distance, 1) if distance < 400 else None
+                # Run blocking ultrasonic measurement in thread pool
+                return await asyncio.to_thread(self._read_ultrasonic_sync)
 
         except Exception as e:
             logger.error(f"Ultrasonic read error: {e}")
             return None
 
+    def _read_ultrasonic_sync(self) -> Optional[float]:
+        """Synchronous ultrasonic read (runs in thread pool)."""
+        import RPi.GPIO as GPIO
+        import time
+
+        GPIO.setup(self._ultrasonic_trigger, GPIO.OUT)
+        GPIO.setup(self._ultrasonic_echo, GPIO.IN)
+
+        # Send trigger pulse
+        GPIO.output(self._ultrasonic_trigger, True)
+        time.sleep(0.00001)
+        GPIO.output(self._ultrasonic_trigger, False)
+
+        # Wait for echo
+        start_time = time.time()
+        stop_time = time.time()
+
+        while GPIO.input(self._ultrasonic_echo) == 0:
+            start_time = time.time()
+            if start_time - stop_time > 0.1:
+                return None
+
+        while GPIO.input(self._ultrasonic_echo) == 1:
+            stop_time = time.time()
+            if stop_time - start_time > 0.1:
+                return None
+
+        # Calculate distance
+        elapsed = stop_time - start_time
+        distance = (elapsed * 34300) / 2
+
+        return round(distance, 1) if distance < 400 else None
+
     # ==================== PIR Motion Detection ====================
 
     async def read_pir(self) -> bool:
         """
-        Read motion status from PIR sensor.
+        Read motion status from PIR sensor (non-blocking).
 
         Returns:
             True if motion detected
@@ -264,13 +273,18 @@ class SensorController(BaseHardwareController, SimulationMixin):
 
                 return self._simulated_values["motion"]
             else:
-                import RPi.GPIO as GPIO
-                GPIO.setup(self._pir_pin, GPIO.IN)
-                return GPIO.input(self._pir_pin) == 1
+                # Run blocking GPIO call in thread pool
+                return await asyncio.to_thread(self._read_pir_sync)
 
         except Exception as e:
             logger.error(f"PIR read error: {e}")
             return False
+
+    def _read_pir_sync(self) -> bool:
+        """Synchronous PIR read (runs in thread pool)."""
+        import RPi.GPIO as GPIO
+        GPIO.setup(self._pir_pin, GPIO.IN)
+        return GPIO.input(self._pir_pin) == 1
 
     # ==================== Light Sensor (LDR) ====================
 

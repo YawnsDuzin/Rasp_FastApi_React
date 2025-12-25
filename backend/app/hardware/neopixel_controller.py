@@ -99,23 +99,12 @@ class NeopixelController(BaseHardwareController, SimulationMixin):
         self._led_colors: List[RGBColor] = [RGBColor(0, 0, 0) for _ in range(self._num_leds)]
 
     async def _do_initialize(self) -> bool:
-        """Initialize NeoPixel strip."""
+        """Initialize NeoPixel strip (non-blocking)."""
         try:
             if not self.simulation_mode:
                 try:
-                    import board
-                    import neopixel
-
-                    pin = getattr(board, f"D{self._pin}")
-                    self._pixels = neopixel.NeoPixel(
-                        pin,
-                        self._num_leds,
-                        brightness=self._brightness,
-                        auto_write=False,
-                        pixel_order=neopixel.GRB
-                    )
-                    self._pixels.fill((0, 0, 0))
-                    self._pixels.show()
+                    # Run blocking initialization in thread pool
+                    await asyncio.to_thread(self._init_neopixel_sync)
 
                 except ImportError:
                     logger.warning("NeoPixel library not available, falling back to simulation")
@@ -130,20 +119,36 @@ class NeopixelController(BaseHardwareController, SimulationMixin):
             logger.error(f"NeoPixel initialization failed: {e}")
             return False
 
+    def _init_neopixel_sync(self) -> None:
+        """Synchronous NeoPixel initialization (runs in thread pool)."""
+        import board
+        import neopixel
+
+        pin = getattr(board, f"D{self._pin}")
+        self._pixels = neopixel.NeoPixel(
+            pin,
+            self._num_leds,
+            brightness=self._brightness,
+            auto_write=False,
+            pixel_order=neopixel.GRB
+        )
+        self._pixels.fill((0, 0, 0))
+        self._pixels.show()
+
     async def _do_cleanup(self) -> None:
-        """Clean up NeoPixel resources."""
+        """Clean up NeoPixel resources (non-blocking)."""
         await self.stop_effect()
         await self.clear()
 
         if self._pixels:
-            self._pixels.deinit()
+            await asyncio.to_thread(self._pixels.deinit)
             self._pixels = None
 
     # ==================== Basic Control ====================
 
     async def set_pixel(self, index: int, color: RGBColor) -> bool:
         """
-        Set a single pixel color.
+        Set a single pixel color (non-blocking).
 
         Args:
             index: Pixel index (0-based)
@@ -156,8 +161,7 @@ class NeopixelController(BaseHardwareController, SimulationMixin):
             self._led_colors[index] = color
 
             if not self.simulation_mode and self._pixels:
-                self._pixels[index] = color.to_tuple()
-                self._pixels.show()
+                await asyncio.to_thread(self._set_pixel_sync, index, color)
 
             return True
 
@@ -165,15 +169,19 @@ class NeopixelController(BaseHardwareController, SimulationMixin):
             logger.error(f"Set pixel error: {e}")
             return False
 
+    def _set_pixel_sync(self, index: int, color: RGBColor) -> None:
+        """Synchronous pixel set (runs in thread pool)."""
+        self._pixels[index] = color.to_tuple()
+        self._pixels.show()
+
     async def set_all(self, color: RGBColor) -> bool:
-        """Set all pixels to the same color."""
+        """Set all pixels to the same color (non-blocking)."""
         try:
             for i in range(self._num_leds):
                 self._led_colors[i] = color
 
             if not self.simulation_mode and self._pixels:
-                self._pixels.fill(color.to_tuple())
-                self._pixels.show()
+                await asyncio.to_thread(self._set_all_sync, color)
 
             return True
 
@@ -181,13 +189,18 @@ class NeopixelController(BaseHardwareController, SimulationMixin):
             logger.error(f"Set all pixels error: {e}")
             return False
 
+    def _set_all_sync(self, color: RGBColor) -> None:
+        """Synchronous set all pixels (runs in thread pool)."""
+        self._pixels.fill(color.to_tuple())
+        self._pixels.show()
+
     async def clear(self) -> bool:
         """Turn off all pixels."""
         return await self.set_all(COLORS["off"])
 
     async def set_brightness(self, brightness: float) -> bool:
         """
-        Set overall brightness.
+        Set overall brightness (non-blocking).
 
         Args:
             brightness: Brightness level (0.0-1.0)
@@ -195,15 +208,15 @@ class NeopixelController(BaseHardwareController, SimulationMixin):
         self._brightness = max(0.0, min(1.0, brightness))
 
         if not self.simulation_mode and self._pixels:
-            self._pixels.brightness = self._brightness
+            await asyncio.to_thread(setattr, self._pixels, 'brightness', self._brightness)
 
         return True
 
     async def show(self) -> bool:
-        """Update the LED strip display."""
+        """Update the LED strip display (non-blocking)."""
         try:
             if not self.simulation_mode and self._pixels:
-                self._pixels.show()
+                await asyncio.to_thread(self._pixels.show)
             return True
         except Exception as e:
             logger.error(f"Show error: {e}")

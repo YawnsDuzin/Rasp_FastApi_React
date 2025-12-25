@@ -300,7 +300,7 @@ class GPIOController(BaseHardwareController, SimulationMixin):
     # ==================== Low-level GPIO ====================
 
     async def write_pin(self, pin: int, state: PinState) -> bool:
-        """Write state to a GPIO pin."""
+        """Write state to a GPIO pin (non-blocking)."""
         if pin not in self._pins:
             logger.error(f"Pin {pin} not configured")
             return False
@@ -309,7 +309,8 @@ class GPIOController(BaseHardwareController, SimulationMixin):
             if self.simulation_mode:
                 await asyncio.sleep(self._simulate_delay())
             else:
-                self._gpio.output(pin, state.value)
+                # Run blocking GPIO call in thread pool to avoid blocking event loop
+                await asyncio.to_thread(self._gpio.output, pin, state.value)
 
             self._pins[pin].state = state
             self._update_timestamp()
@@ -321,7 +322,7 @@ class GPIOController(BaseHardwareController, SimulationMixin):
             return False
 
     async def read_pin(self, pin: int) -> PinState:
-        """Read state from a GPIO pin."""
+        """Read state from a GPIO pin (non-blocking)."""
         if pin not in self._pins:
             logger.error(f"Pin {pin} not configured")
             return PinState.LOW
@@ -331,7 +332,8 @@ class GPIOController(BaseHardwareController, SimulationMixin):
                 await asyncio.sleep(self._simulate_delay())
                 return self._pins[pin].state
             else:
-                value = self._gpio.input(pin)
+                # Run blocking GPIO call in thread pool to avoid blocking event loop
+                value = await asyncio.to_thread(self._gpio.input, pin)
                 state = PinState.HIGH if value else PinState.LOW
                 self._pins[pin].state = state
                 return state

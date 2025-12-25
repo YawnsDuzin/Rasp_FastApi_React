@@ -110,7 +110,7 @@ class I2CController(BaseHardwareController, SimulationMixin):
 
     async def scan_devices(self) -> List[int]:
         """
-        Scan I2C bus for connected devices.
+        Scan I2C bus for connected devices (non-blocking).
 
         Returns:
             List of detected device addresses
@@ -127,24 +127,31 @@ class I2CController(BaseHardwareController, SimulationMixin):
                 )
                 detected.append(addr)
         else:
-            for addr in range(0x03, 0x78):
-                try:
-                    self._bus.write_quick(addr)
-                    name = self._known_devices.get(addr, f"Unknown (0x{addr:02X})")
-                    self._devices[addr] = I2CDevice(
-                        address=addr,
-                        name=name,
-                        is_connected=True
-                    )
-                    detected.append(addr)
-                    logger.info(f"Found I2C device at 0x{addr:02X}: {name}")
-                except Exception:
-                    pass
+            # Run blocking I2C scan in thread pool
+            detected = await asyncio.to_thread(self._scan_devices_sync)
 
         return detected
 
+    def _scan_devices_sync(self) -> List[int]:
+        """Synchronous I2C device scan (runs in thread pool)."""
+        detected = []
+        for addr in range(0x03, 0x78):
+            try:
+                self._bus.write_quick(addr)
+                name = self._known_devices.get(addr, f"Unknown (0x{addr:02X})")
+                self._devices[addr] = I2CDevice(
+                    address=addr,
+                    name=name,
+                    is_connected=True
+                )
+                detected.append(addr)
+                logger.info(f"Found I2C device at 0x{addr:02X}: {name}")
+            except Exception:
+                pass
+        return detected
+
     async def read_byte(self, address: int, register: int) -> Optional[int]:
-        """Read a single byte from an I2C device."""
+        """Read a single byte from an I2C device (non-blocking)."""
         if address not in self._devices:
             logger.error(f"Device at 0x{address:02X} not found")
             return None
@@ -154,14 +161,17 @@ class I2CController(BaseHardwareController, SimulationMixin):
                 await asyncio.sleep(self._simulate_delay())
                 return 0x00
             else:
-                return self._bus.read_byte_data(address, register)
+                # Run blocking I2C call in thread pool
+                return await asyncio.to_thread(
+                    self._bus.read_byte_data, address, register
+                )
 
         except Exception as e:
             logger.error(f"I2C read error: {e}")
             return None
 
     async def write_byte(self, address: int, register: int, value: int) -> bool:
-        """Write a single byte to an I2C device."""
+        """Write a single byte to an I2C device (non-blocking)."""
         if address not in self._devices:
             return False
 
@@ -169,7 +179,10 @@ class I2CController(BaseHardwareController, SimulationMixin):
             if self.simulation_mode:
                 await asyncio.sleep(self._simulate_delay())
             else:
-                self._bus.write_byte_data(address, register, value)
+                # Run blocking I2C call in thread pool
+                await asyncio.to_thread(
+                    self._bus.write_byte_data, address, register, value
+                )
             return True
 
         except Exception as e:
@@ -177,7 +190,7 @@ class I2CController(BaseHardwareController, SimulationMixin):
             return False
 
     async def read_block(self, address: int, register: int, length: int) -> Optional[bytes]:
-        """Read a block of data from an I2C device."""
+        """Read a block of data from an I2C device (non-blocking)."""
         if address not in self._devices:
             return None
 
@@ -186,7 +199,10 @@ class I2CController(BaseHardwareController, SimulationMixin):
                 await asyncio.sleep(self._simulate_delay())
                 return bytes([0] * length)
             else:
-                data = self._bus.read_i2c_block_data(address, register, length)
+                # Run blocking I2C call in thread pool
+                data = await asyncio.to_thread(
+                    self._bus.read_i2c_block_data, address, register, length
+                )
                 return bytes(data)
 
         except Exception as e:
@@ -194,7 +210,7 @@ class I2CController(BaseHardwareController, SimulationMixin):
             return None
 
     async def write_block(self, address: int, register: int, data: bytes) -> bool:
-        """Write a block of data to an I2C device."""
+        """Write a block of data to an I2C device (non-blocking)."""
         if address not in self._devices:
             return False
 
@@ -202,7 +218,10 @@ class I2CController(BaseHardwareController, SimulationMixin):
             if self.simulation_mode:
                 await asyncio.sleep(self._simulate_delay())
             else:
-                self._bus.write_i2c_block_data(address, register, list(data))
+                # Run blocking I2C call in thread pool
+                await asyncio.to_thread(
+                    self._bus.write_i2c_block_data, address, register, list(data)
+                )
             return True
 
         except Exception as e:
@@ -213,7 +232,7 @@ class I2CController(BaseHardwareController, SimulationMixin):
 
     async def read_bmp280(self) -> Optional[Dict[str, float]]:
         """
-        Read temperature and pressure from BMP280.
+        Read temperature and pressure from BMP280 (non-blocking).
 
         Returns:
             Dict with temperature (°C), pressure (hPa), and altitude (m)
@@ -231,23 +250,8 @@ class I2CController(BaseHardwareController, SimulationMixin):
             }
 
         try:
-            # Real BMP280 reading would use adafruit-circuitpython-bmp280
-            # This is a placeholder for the actual implementation
-            import board
-            import adafruit_bmp280
-
-            i2c = board.I2C()
-            bmp280 = adafruit_bmp280.Adafruit_BMP280_I2C(i2c, address=address)
-
-            temperature = bmp280.temperature
-            pressure = bmp280.pressure
-            altitude = bmp280.altitude
-
-            return {
-                "temperature": temperature,
-                "pressure": pressure,
-                "altitude": altitude
-            }
+            # Run blocking sensor read in thread pool
+            return await asyncio.to_thread(self._read_bmp280_sync, address)
 
         except ImportError:
             logger.warning("BMP280 library not available")
@@ -255,6 +259,20 @@ class I2CController(BaseHardwareController, SimulationMixin):
         except Exception as e:
             logger.error(f"BMP280 read error: {e}")
             return None
+
+    def _read_bmp280_sync(self, address: int) -> Optional[Dict[str, float]]:
+        """Synchronous BMP280 read (runs in thread pool)."""
+        import board
+        import adafruit_bmp280
+
+        i2c = board.I2C()
+        bmp280 = adafruit_bmp280.Adafruit_BMP280_I2C(i2c, address=address)
+
+        return {
+            "temperature": bmp280.temperature,
+            "pressure": bmp280.pressure,
+            "altitude": bmp280.altitude
+        }
 
     def set_simulated_bmp280(self, temperature: float = None, pressure: float = None) -> None:
         """Set simulated BMP280 values."""
@@ -267,7 +285,7 @@ class I2CController(BaseHardwareController, SimulationMixin):
 
     async def read_adc(self, channel: int = 0) -> Optional[float]:
         """
-        Read voltage from ADS1115 ADC channel.
+        Read voltage from ADS1115 ADC channel (non-blocking).
 
         Args:
             channel: ADC channel (0-3)
@@ -288,18 +306,8 @@ class I2CController(BaseHardwareController, SimulationMixin):
             return self._simulate_noise(data[key], 1.0)
 
         try:
-            import board
-            import busio
-            import adafruit_ads1x15.ads1115 as ADS
-            from adafruit_ads1x15.analog_in import AnalogIn
-
-            i2c = busio.I2C(board.SCL, board.SDA)
-            ads = ADS.ADS1115(i2c, address=address)
-
-            channels = [ADS.P0, ADS.P1, ADS.P2, ADS.P3]
-            chan = AnalogIn(ads, channels[channel])
-
-            return chan.voltage
+            # Run blocking ADC read in thread pool
+            return await asyncio.to_thread(self._read_adc_sync, address, channel)
 
         except ImportError:
             logger.warning("ADS1115 library not available")
@@ -307,6 +315,21 @@ class I2CController(BaseHardwareController, SimulationMixin):
         except Exception as e:
             logger.error(f"ADC read error: {e}")
             return None
+
+    def _read_adc_sync(self, address: int, channel: int) -> float:
+        """Synchronous ADC read (runs in thread pool)."""
+        import board
+        import busio
+        import adafruit_ads1x15.ads1115 as ADS
+        from adafruit_ads1x15.analog_in import AnalogIn
+
+        i2c = busio.I2C(board.SCL, board.SDA)
+        ads = ADS.ADS1115(i2c, address=address)
+
+        channels = [ADS.P0, ADS.P1, ADS.P2, ADS.P3]
+        chan = AnalogIn(ads, channels[channel])
+
+        return chan.voltage
 
     async def read_all_adc_channels(self) -> Dict[int, float]:
         """Read all ADC channels."""

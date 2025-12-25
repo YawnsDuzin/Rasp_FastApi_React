@@ -83,21 +83,10 @@ class DisplayController(BaseHardwareController, SimulationMixin):
             return False
 
     async def _init_oled(self) -> bool:
-        """Initialize OLED display."""
+        """Initialize OLED display (non-blocking)."""
         try:
-            import board
-            import busio
-            import adafruit_ssd1306
-
-            i2c = busio.I2C(board.SCL, board.SDA)
-            self._oled = adafruit_ssd1306.SSD1306_I2C(
-                self._oled_width, self._oled_height,
-                i2c, addr=self._oled_address
-            )
-            self._oled.fill(0)
-            self._oled.show()
-            logger.info("OLED display initialized")
-            return True
+            # Run blocking I2C initialization in thread pool
+            return await asyncio.to_thread(self._init_oled_sync)
 
         except ImportError:
             logger.warning("OLED library not available")
@@ -106,21 +95,27 @@ class DisplayController(BaseHardwareController, SimulationMixin):
             logger.warning(f"OLED initialization failed: {e}")
             return False
 
-    async def _init_lcd(self) -> bool:
-        """Initialize LCD display."""
-        try:
-            from RPLCD.i2c import CharLCD
+    def _init_oled_sync(self) -> bool:
+        """Synchronous OLED initialization (runs in thread pool)."""
+        import board
+        import busio
+        import adafruit_ssd1306
 
-            self._lcd = CharLCD(
-                i2c_expander='PCF8574',
-                address=self._lcd_address,
-                port=1,
-                cols=self._lcd_cols,
-                rows=self._lcd_rows
-            )
-            self._lcd.clear()
-            logger.info("LCD display initialized")
-            return True
+        i2c = busio.I2C(board.SCL, board.SDA)
+        self._oled = adafruit_ssd1306.SSD1306_I2C(
+            self._oled_width, self._oled_height,
+            i2c, addr=self._oled_address
+        )
+        self._oled.fill(0)
+        self._oled.show()
+        logger.info("OLED display initialized")
+        return True
+
+    async def _init_lcd(self) -> bool:
+        """Initialize LCD display (non-blocking)."""
+        try:
+            # Run blocking I2C initialization in thread pool
+            return await asyncio.to_thread(self._init_lcd_sync)
 
         except ImportError:
             logger.warning("LCD library not available")
@@ -129,38 +124,62 @@ class DisplayController(BaseHardwareController, SimulationMixin):
             logger.warning(f"LCD initialization failed: {e}")
             return False
 
-    async def _do_cleanup(self) -> None:
-        """Clean up display resources."""
-        try:
-            if self._oled:
-                self._oled.fill(0)
-                self._oled.show()
+    def _init_lcd_sync(self) -> bool:
+        """Synchronous LCD initialization (runs in thread pool)."""
+        from RPLCD.i2c import CharLCD
 
-            if self._lcd:
-                self._lcd.clear()
-                self._lcd.close()
+        self._lcd = CharLCD(
+            i2c_expander='PCF8574',
+            address=self._lcd_address,
+            port=1,
+            cols=self._lcd_cols,
+            rows=self._lcd_rows
+        )
+        self._lcd.clear()
+        logger.info("LCD display initialized")
+        return True
+
+    async def _do_cleanup(self) -> None:
+        """Clean up display resources (non-blocking)."""
+        try:
+            if self._oled or self._lcd:
+                await asyncio.to_thread(self._cleanup_displays_sync)
         except Exception as e:
             logger.error(f"Display cleanup error: {e}")
+
+    def _cleanup_displays_sync(self) -> None:
+        """Synchronous display cleanup (runs in thread pool)."""
+        if self._oled:
+            self._oled.fill(0)
+            self._oled.show()
+
+        if self._lcd:
+            self._lcd.clear()
+            self._lcd.close()
 
     # ==================== OLED Display ====================
 
     async def oled_clear(self) -> bool:
-        """Clear OLED display."""
+        """Clear OLED display (non-blocking)."""
         try:
             if self.simulation_mode:
                 self._oled_buffer = [[0] * self._oled_width for _ in range(self._oled_height)]
             else:
                 if self._oled:
-                    self._oled.fill(0)
-                    self._oled.show()
+                    await asyncio.to_thread(self._oled_clear_sync)
             return True
         except Exception as e:
             logger.error(f"OLED clear error: {e}")
             return False
 
+    def _oled_clear_sync(self) -> None:
+        """Synchronous OLED clear (runs in thread pool)."""
+        self._oled.fill(0)
+        self._oled.show()
+
     async def oled_text(self, text: str, x: int = 0, y: int = 0) -> bool:
         """
-        Display text on OLED.
+        Display text on OLED (non-blocking).
 
         Args:
             text: Text to display
@@ -176,49 +195,57 @@ class DisplayController(BaseHardwareController, SimulationMixin):
                 logger.debug(f"OLED text at ({x}, {y}): {text}")
             else:
                 if self._oled:
-                    self._oled.text(text, x, y, 1)
-                    self._oled.show()
+                    await asyncio.to_thread(self._oled_text_sync, text, x, y)
             return True
         except Exception as e:
             logger.error(f"OLED text error: {e}")
             return False
 
+    def _oled_text_sync(self, text: str, x: int, y: int) -> None:
+        """Synchronous OLED text (runs in thread pool)."""
+        self._oled.text(text, x, y, 1)
+        self._oled.show()
+
     async def oled_pixel(self, x: int, y: int, color: int = 1) -> bool:
-        """Set a single pixel on OLED."""
+        """Set a single pixel on OLED (non-blocking)."""
         try:
             if 0 <= x < self._oled_width and 0 <= y < self._oled_height:
                 if self.simulation_mode:
                     self._oled_buffer[y][x] = color
                 else:
                     if self._oled:
-                        self._oled.pixel(x, y, color)
+                        await asyncio.to_thread(self._oled.pixel, x, y, color)
             return True
         except Exception as e:
             logger.error(f"OLED pixel error: {e}")
             return False
 
     async def oled_rect(self, x: int, y: int, width: int, height: int, fill: bool = False) -> bool:
-        """Draw a rectangle on OLED."""
+        """Draw a rectangle on OLED (non-blocking)."""
         try:
             if self.simulation_mode:
                 await asyncio.sleep(self._simulate_delay())
             else:
                 if self._oled:
-                    if fill:
-                        self._oled.fill_rect(x, y, width, height, 1)
-                    else:
-                        self._oled.rect(x, y, width, height, 1)
-                    self._oled.show()
+                    await asyncio.to_thread(self._oled_rect_sync, x, y, width, height, fill)
             return True
         except Exception as e:
             logger.error(f"OLED rect error: {e}")
             return False
 
+    def _oled_rect_sync(self, x: int, y: int, width: int, height: int, fill: bool) -> None:
+        """Synchronous OLED rect (runs in thread pool)."""
+        if fill:
+            self._oled.fill_rect(x, y, width, height, 1)
+        else:
+            self._oled.rect(x, y, width, height, 1)
+        self._oled.show()
+
     async def oled_show(self) -> bool:
-        """Update OLED display."""
+        """Update OLED display (non-blocking)."""
         try:
             if not self.simulation_mode and self._oled:
-                self._oled.show()
+                await asyncio.to_thread(self._oled.show)
             return True
         except Exception as e:
             logger.error(f"OLED show error: {e}")
@@ -250,11 +277,11 @@ class DisplayController(BaseHardwareController, SimulationMixin):
     # ==================== LCD Display ====================
 
     async def lcd_clear(self) -> bool:
-        """Clear LCD display."""
+        """Clear LCD display (non-blocking)."""
         try:
             self._lcd_lines = ["", "", "", ""]
             if not self.simulation_mode and self._lcd:
-                self._lcd.clear()
+                await asyncio.to_thread(self._lcd.clear)
             return True
         except Exception as e:
             logger.error(f"LCD clear error: {e}")
@@ -262,7 +289,7 @@ class DisplayController(BaseHardwareController, SimulationMixin):
 
     async def lcd_write(self, text: str, row: int = 0, col: int = 0) -> bool:
         """
-        Write text to LCD.
+        Write text to LCD (non-blocking).
 
         Args:
             text: Text to display
@@ -280,8 +307,7 @@ class DisplayController(BaseHardwareController, SimulationMixin):
                 await asyncio.sleep(self._simulate_delay())
             else:
                 if self._lcd:
-                    self._lcd.cursor_pos = (row, col)
-                    self._lcd.write_string(text)
+                    await asyncio.to_thread(self._lcd_write_sync, text, row, col)
 
             return True
 
@@ -289,12 +315,17 @@ class DisplayController(BaseHardwareController, SimulationMixin):
             logger.error(f"LCD write error: {e}")
             return False
 
+    def _lcd_write_sync(self, text: str, row: int, col: int) -> None:
+        """Synchronous LCD write (runs in thread pool)."""
+        self._lcd.cursor_pos = (row, col)
+        self._lcd.write_string(text)
+
     async def lcd_set_backlight(self, enabled: bool) -> bool:
-        """Set LCD backlight state."""
+        """Set LCD backlight state (non-blocking)."""
         try:
             self._lcd_backlight = enabled
             if not self.simulation_mode and self._lcd:
-                self._lcd.backlight_enabled = enabled
+                await asyncio.to_thread(setattr, self._lcd, 'backlight_enabled', enabled)
             return True
         except Exception as e:
             logger.error(f"LCD backlight error: {e}")
