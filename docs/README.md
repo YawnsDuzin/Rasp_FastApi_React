@@ -20,13 +20,13 @@ FastAPI 백엔드와 React 프론트엔드를 사용하여 하드웨어 제어 �
 
 | 문서 | 설명 |
 |------|------|
-| [아키텍처 개요](./architecture/OVERVIEW.md) | 시스템 아키텍처 및 설계 원칙 |
-| [기술 스택](./architecture/TECH_STACK.md) | 사용된 기술 및 라이브러리 |
-| [백엔드 가이드](./backend/README.md) | FastAPI 백엔드 상세 문서 |
-| [프론트엔드 가이드](./frontend/README.md) | React 프론트엔드 상세 문서 |
-| [하드웨어 가이드](./hardware/README.md) | 지원 하드웨어 및 배선 가이드 |
-| [API 레퍼런스](./api/README.md) | REST API 및 WebSocket 문서 |
-| [배포 가이드](./deployment/README.md) | 설치 및 배포 방법 |
+| [시스템 아키텍처](./ARCHITECTURE.md) | 3계층 아키텍처, 기술 스택, 설계 원칙 |
+| [Frontend-Backend 연동](./INTEGRATION.md) | 프론트엔드-백엔드 통신 및 데이터 흐름 상세 |
+| [백엔드 가이드](./BACKEND.md) | FastAPI 백엔드 개발 가이드 |
+| [프론트엔드 가이드](./FRONTEND.md) | React 프론트엔드 개발 가이드 |
+| [하드웨어 가이드](./HARDWARE.md) | 지원 하드웨어 및 배선 가이드 |
+| [API 레퍼런스](./API.md) | REST API 및 WebSocket 엔드포인트 |
+| [배포 가이드](./DEPLOYMENT.md) | 설치, 서비스 설정, 문제 해결 |
 
 ---
 

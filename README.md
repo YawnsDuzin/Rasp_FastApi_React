@@ -8,8 +8,9 @@
 - **하드웨어 제어**: GPIO, PWM, I2C, SPI 등 다양한 하드웨어 인터페이스 지원
 - **시스템 모니터링**: CPU, 메모리, 디스크, 온도 실시간 모니터링
 - **데이터 로깅**: SQLite WAL 모드로 SD 카드 수명 보호
-- **시뮬레이션 모드**: 라즈베리파이 없이도 개발 및 테스트 가능
+- **시뮬레이션 모드**: 라즈베리파이 없이도 개발 및 테스트 가능 (수동 값 설정 지원)
 - **반응형 UI**: 모바일/태블릿/데스크톱 모든 환경 지원
+- **Gmail 스타일 UI**: 사이드바 토글 메뉴로 깔끔한 레이아웃
 
 ## 시스템 아키텍처
 
@@ -43,6 +44,7 @@
 │  │   SPI Controller (MCP3008)                              │ │
 │  │   Sensor Controller (DHT22, HC-SR04, PIR)              │ │
 │  │   NeoPixel Controller (WS2812B LED Strip)              │ │
+│  │   Display Controller (OLED SSD1306, LCD 1602/2004)     │ │
 │  └─────────────────────────────────────────────────────────┘ │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -70,7 +72,9 @@
 
 ## 빠른 시작
 
-### 1. 의존성 설치
+### 🐧 Linux / Raspberry Pi 설치
+
+#### 1. 의존성 설치
 
 ```bash
 # 저장소 클론
@@ -82,7 +86,10 @@ chmod +x scripts/install.sh
 ./scripts/install.sh
 ```
 
-### 2. 서버 실행
+> **참고**: 라즈베리파이에서 실행 시 GPIO/I2C/SPI 하드웨어가 자동 활성화됩니다.
+> 일반 Linux에서는 시뮬레이션 모드로 자동 설정됩니다.
+
+#### 2. 서버 실행
 
 ```bash
 cd backend
@@ -90,20 +97,121 @@ source venv/bin/activate
 python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
 
-### 3. 웹 브라우저 접속
+#### 3. 웹 브라우저 접속
 
 ```
 http://<라즈베리파이_IP>:8000
 ```
 
+---
+
+### 🪟 Windows PC 설치
+
+Windows에서는 **시뮬레이션 모드**로만 동작합니다 (실제 하드웨어 제어 불가).
+개발 및 테스트 목적으로 사용할 수 있습니다.
+
+#### 사전 요구사항
+
+- [Python 3.9+](https://www.python.org/downloads/) 설치
+- [Node.js 18+](https://nodejs.org/) 설치
+- [Git](https://git-scm.com/downloads) 설치
+
+#### 1. 저장소 클론
+
+```powershell
+git clone https://github.com/your-repo/Rasp_FastApi_React.git
+cd Rasp_FastApi_React
+```
+
+#### 2. Backend 설치
+
+```powershell
+cd backend
+
+# 가상환경 생성 및 활성화
+python -m venv venv
+.\venv\Scripts\activate
+
+# 의존성 설치
+python.exe -m pip install --upgrade pip
+
+pip install -r requirements.txt
+```
+
+> **참고**: `requirements.txt`는 유연한 버전 지정(`>=`)을 사용하여 Windows/Linux 호환성을 보장합니다.
+
+#### 3. Frontend 설치 및 빌드
+
+```powershell
+cd ..\frontend
+
+# 의존성 설치
+npm install
+
+# 프로덕션 빌드
+npm run build
+
+# 빌드 결과물을 backend로 복사
+mkdir ..\backend\static -Force
+Copy-Item -Path .\dist\* -Destination ..\backend\static\ -Recurse -Force
+```
+
+#### 4. 환경 설정
+
+`backend/.env` 파일을 생성합니다:
+
+```powershell
+cd ..\backend
+```
+
+다음 내용으로 `.env` 파일 생성:
+
+```env
+DEBUG=false
+HOST=0.0.0.0
+PORT=8000
+LOG_LEVEL=INFO
+SIMULATION_MODE=true
+HARDWARE_UPDATE_INTERVAL=0.5
+DATA_LOG_INTERVAL=5.0
+DATA_RETENTION_DAYS=30
+```
+
+#### 5. 서버 실행
+
+```powershell
+# backend 폴더에서 가상환경 활성화 상태로 실행
+python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
+```
+
+#### 6. 웹 브라우저 접속
+
+```
+http://localhost:8000
+```
+
+---
+
 ## 개발 환경 설정
 
 ### Backend (FastAPI)
 
+**Linux / Raspberry Pi:**
 ```bash
 cd backend
 python3 -m venv venv
 source venv/bin/activate
+pip install -r requirements.txt
+
+# 개발 서버 실행 (자동 리로드)
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+**Windows:**
+```powershell
+cd backend
+python -m venv venv
+.\venv\Scripts\activate
 pip install -r requirements.txt
 
 # 개발 서버 실행 (자동 리로드)
@@ -119,6 +227,8 @@ npm install
 # 개발 서버 실행
 npm run dev
 ```
+
+> **참고**: Frontend 개발 서버는 Linux와 Windows 모두 동일한 명령어입니다.
 
 ## 배포
 
@@ -148,26 +258,30 @@ Rasp_FastApi_React/
 │   │   │   └── websocket.py   # WebSocket 엔드포인트
 │   │   ├── core/              # 설정 및 로깅
 │   │   ├── hardware/          # 하드웨어 컨트롤러
-│   │   │   ├── gpio_controller.py
-│   │   │   ├── pwm_controller.py
-│   │   │   ├── i2c_controller.py
-│   │   │   ├── spi_controller.py
-│   │   │   ├── sensor_controller.py
-│   │   │   ├── display_controller.py
+│   │   │   ├── gpio_controller.py    # LED, 버튼, 릴레이 제어
+│   │   │   ├── pwm_controller.py     # 모터, 서보 제어
+│   │   │   ├── i2c_controller.py     # BMP280, ADS1115 등
+│   │   │   ├── spi_controller.py     # MCP3008 ADC
+│   │   │   ├── sensor_controller.py  # DHT, 초음파, PIR 센서
+│   │   │   ├── display_controller.py # OLED, LCD 디스플레이
 │   │   │   ├── neopixel_controller.py
 │   │   │   └── manager.py     # 통합 하드웨어 매니저
 │   │   ├── models/            # 데이터베이스 모델
 │   │   ├── services/          # 비즈니스 로직
 │   │   └── main.py            # 애플리케이션 진입점
-│   ├── requirements.txt
+│   ├── requirements.txt       # Python 의존성 (유연한 버전)
 │   └── data/                  # SQLite 데이터베이스
 ├── frontend/                   # React 프론트엔드
 │   ├── src/
-│   │   ├── components/        # UI 컴포넌트
+│   │   ├── components/        # UI 컴포넌트 (Layout, Toggle 등)
 │   │   ├── pages/             # 페이지 컴포넌트
+│   │   │   ├── Dashboard.tsx  # 대시보드 (센서, GPIO 상태)
+│   │   │   ├── Hardware.tsx   # 하드웨어 제어 (버튼, LCD 포함)
+│   │   │   └── Settings.tsx   # 설정 (시뮬레이션 제어)
 │   │   ├── hooks/             # React 훅
 │   │   ├── services/          # API 서비스
 │   │   └── types/             # TypeScript 타입
+│   ├── vite.config.ts         # Vite 설정 (WebSocket 프록시 포함)
 │   └── package.json
 ├── scripts/                    # 배포 스크립트
 │   ├── install.sh
@@ -196,6 +310,8 @@ Rasp_FastApi_React/
 | POST | `/api/hardware/pwm/servo` | 서보 각도 제어 |
 | GET | `/api/hardware/sensors` | 센서 데이터 조회 |
 | POST | `/api/hardware/neopixel/effect` | NeoPixel 효과 설정 |
+| POST | `/api/hardware/display/lcd/write` | LCD 텍스트 쓰기 |
+| POST | `/api/hardware/display/lcd/clear` | LCD 화면 지우기 |
 | GET | `/api/system/metrics` | 시스템 메트릭 조회 |
 | GET | `/api/system/health` | 시스템 상태 확인 |
 | GET | `/api/data/sensors` | 센서 기록 조회 |
@@ -315,6 +431,44 @@ sudo usermod -aG i2c $USER
 ```env
 SIMULATION_MODE=true
 ```
+
+## UI 특징
+
+### Gmail 스타일 사이드바
+- 햄버거 메뉴가 사이드바 상단 좌측에 위치
+- 사이드바 접힘 시 로고가 숨겨지고 메뉴 아이콘만 표시
+- 반응형 레이아웃으로 모바일 환경 지원
+
+### Dashboard 페이지
+- 센서 데이터 실시간 게이지 (온도, 습도, 거리, 조도 등)
+- LED 상태 표시
+- **버튼 상태 표시** (4개 버튼 읽기 전용)
+- 릴레이 상태 표시
+- 시스템 메트릭 (CPU, 메모리, 디스크)
+
+### Hardware 페이지
+- LED 제어 (4개 개별 토글)
+- **버튼 상태 모니터링** (읽기 전용, 눌림/해제 상태 표시)
+- 릴레이 제어 (2채널)
+- 모터 속도 조절 (PWM 0-100%)
+- 서보 각도 조절 (0-180°)
+- NeoPixel 효과 선택
+- **LCD 디스플레이 제어** (텍스트 쓰기, 행 선택, 화면 지우기)
+- **OLED 디스플레이 정보** (자동 상태 표시)
+
+### Settings 페이지
+- 시뮬레이션 모드 제어 (센서 값 수동 설정)
+- 다크 모드 토글
+- 시스템 정보 표시
+
+## 시뮬레이션 모드
+
+시뮬레이션 모드에서는 실제 하드웨어 없이 모든 기능을 테스트할 수 있습니다.
+
+### 센서 값 수동 설정
+Settings 페이지의 Simulation Controls에서 각 센서 값을 수동으로 설정할 수 있습니다:
+- 수동 설정된 값은 자동 드리프트가 비활성화됩니다
+- 설정하지 않은 센서는 자동으로 현실적인 값을 시뮬레이션합니다
 
 ## 라이선스
 
