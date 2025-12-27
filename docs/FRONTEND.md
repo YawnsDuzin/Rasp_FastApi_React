@@ -8,10 +8,21 @@ frontend/
 │   ├── main.tsx                    # 애플리케이션 엔트리포인트
 │   ├── App.tsx                     # 메인 App 컴포넌트
 │   ├── components/                 # 재사용 가능한 UI 컴포넌트
-│   │   ├── Layout.tsx              # 레이아웃 (사이드바, 네비게이션)
-│   │   ├── GaugeChart.tsx          # 게이지 차트 컴포넌트
-│   │   ├── Slider.tsx              # 슬라이더 컴포넌트
-│   │   └── Toggle.tsx              # 토글 스위치 컴포넌트
+│   │   ├── Layout.tsx              # Gmail 스타일 레이아웃 (사이드바, 네비게이션)
+│   │   ├── GaugeChart.tsx          # SVG 게이지 차트 컴포넌트
+│   │   └── ui/                     # shadcn/ui 스타일 컴포넌트
+│   │       ├── button.tsx          # 버튼 컴포넌트
+│   │       ├── card.tsx            # 카드 컴포넌트
+│   │       ├── switch.tsx          # 토글 스위치 컴포넌트
+│   │       ├── slider.tsx          # 슬라이더 컴포넌트
+│   │       ├── badge.tsx           # 뱃지 컴포넌트
+│   │       ├── select.tsx          # 셀렉트 컴포넌트
+│   │       ├── input.tsx           # 인풋 컴포넌트
+│   │       ├── label.tsx           # 라벨 컴포넌트
+│   │       ├── progress.tsx        # 프로그레스 바 컴포넌트
+│   │       └── index.ts            # 컴포넌트 re-export
+│   ├── lib/                        # 유틸리티 함수
+│   │   └── utils.ts                # cn() 클래스명 병합 유틸리티
 │   ├── pages/                      # 페이지 컴포넌트
 │   │   ├── Dashboard.tsx           # 대시보드
 │   │   ├── Hardware.tsx            # 하드웨어 제어
